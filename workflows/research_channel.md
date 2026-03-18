@@ -3,10 +3,15 @@
 ## Phase 1: Gather Inputs
 
 Ask the user:
-1. **Channel**: URL, @handle, or channel name
-2. **Mode**: `channel` or `research`
-   - If `research`: ask for the topic/goal (e.g., "build a trading playbook", "understand options strategies")
-   - If `channel`: ask "What are you interested in learning?" — this is not a deep research topic, it's the user's context so the report can judge what's relevant vs irrelevant to them (e.g., "options trading", "cooking for beginners", "machine learning for production systems"). Without this, the report can't tell what's worth the user's time.
+1. **Which channel?** — URL, @handle, or channel name
+2. **What do you want to know?** — free text. Mention that they can also use `channel mode` (what's worth watching, what to skip) or `research mode` (deep dive into content) if they want to.
+
+Based on the user's response, determine internally which mode fits:
+- If the intent is about **navigating the channel** (what to watch, what to skip, is it worth my time, best videos) → use **channel** prompts
+- If the intent is about **understanding content** (build a playbook, answer a question, learn a technique) → use **research** prompts
+- If ambiguous or blended → use research prompts with channel-style structure in synthesis
+
+The user's response also serves as the `{user_interest}` / `{topic}` variable used in extraction and synthesis prompts.
 
 ## Phase 2: Resolve Channel
 

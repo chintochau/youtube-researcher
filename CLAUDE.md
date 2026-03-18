@@ -26,12 +26,12 @@ data/               Output directory (one folder per channel)
     {channel}.xlsx      Cumulative Excel workbook
 ```
 
-## Two Modes
+## Two Modes (internal — user doesn't need to pick)
 
-- **Channel mode**: Preset analysis — "which videos to watch, what overlaps, what to skip." No topic needed from user.
-- **Research mode**: User provides a topic/goal. Extracts only relevant content, synthesizes into a research report.
+- **Channel mode**: What's worth watching, what overlaps, what to skip. Triggered when user intent is about navigating the channel.
+- **Research mode**: Deep dive into content — build a playbook, answer questions, learn techniques. Triggered when user intent is about understanding content.
 
-Both modes use the same pipeline. The only difference is the extraction and synthesis prompts.
+The user just says what they want to know. Claude determines which mode fits. User can also explicitly say "channel mode" or "research mode" if they want to.
 
 ## Key Rules
 
