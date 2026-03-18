@@ -24,31 +24,54 @@ Display to user:
 - Channel name, subscriber count, total video count
 - Channel description (first 2 lines)
 
-## Phase 3: Estimation & Scope Selection
+## Phase 3: Estimation & Smart Scope Selection
 
-Present the user with:
-- **Total videos on channel**: N
-- **Supadata credits needed**: 1 per transcript
-- **Scope options**:
-  - `all` — fetch everything (N credits)
-  - `last_n` — most recent N videos (e.g., last 20)
-  - `date_range` — videos between two dates (e.g., after 2024-01-01)
-  - `keyword` — only videos with keyword in title/description
+First, fetch the full video list (YouTube API only — no transcript credits spent):
+```bash
+cd /home/jasonchau/projects/youtube-researcher && python tools/youtube_api.py --action list_videos --uploads_playlist "<playlist_id>" --channel_name "<name>" --scope '{"type": "all"}'
+```
 
-Ask user to pick a scope. Construct the scope JSON accordingly:
+Then analyze the video metadata (titles, descriptions, dates, view counts) against the user's topic/interest and present a **smart recommendation**:
+
+### What to show the user:
+1. **Channel stats**: Total videos (excluding Shorts), date range (oldest → newest), upload frequency. Mention that short videos (≤ 2 minutes) are excluded by default — the user can ask to include them if needed.
+2. **Topic relevance scan**: How many video titles/descriptions match the user's topic (keyword + semantic)
+3. **Recommended scope** — a tailored suggestion, e.g.:
+   - "Of 1,200 videos, ~85 have titles directly related to '{topic}'. I recommend fetching those (~85 credits)."
+   - "This channel uploads daily news recaps. The last 50 videos cover the most current info (~50 credits)."
+   - "The channel has 3 playlists relevant to your topic with 40 videos total (~40 credits)."
+4. **Reasoning**: Briefly explain why this scope was chosen (recency, title relevance, popularity, series/playlist grouping, etc.)
+
+### Factors to consider when recommending:
+- **Title/description keyword match** — strongest signal; scan for topic-related terms
+- **Recency** — newer content is often more relevant, especially for fast-moving topics
+- **View count / popularity** — high-view videos are often the creator's best or most representative work
+- **Upload frequency** — daily channels have more filler; weekly/monthly channels tend to have higher density per video
+- **Video duration** — very short videos (<2 min) may be shorts/promos; very long (>2 hrs) may be livestreams
+- **Series patterns** — titles with "Part 1", "Ep. 3", numbered sequences suggest a structured series worth grabbing together
+
+### Always offer these options:
+- **Recommended** (the smart suggestion above) — *default*
+- **Custom filter**: `last_n`, `date_range`, `keyword`, or combination
+- **Full channel**: all N videos (warn about credit cost if N > 100)
+
+Ask user to pick. Construct the scope JSON accordingly:
 - `{"type": "all"}`
 - `{"type": "last_n", "n": 20}`
 - `{"type": "date_range", "after": "2024-01-01", "before": "2024-12-31"}`
 - `{"type": "keyword", "q": "options"}`
+- `{"type": "video_ids", "ids": ["id1", "id2", ...]}` — for the smart recommendation (curated list)
 
-## Phase 4: Fetch Video List
+## Phase 4: Apply Scope Filter
 
-Run:
+If the user chose the smart recommendation or a custom filter (not "all"), re-fetch or filter the video list to the selected scope:
 ```bash
 cd /home/jasonchau/projects/youtube-researcher && python tools/youtube_api.py --action list_videos --uploads_playlist "<playlist_id>" --channel_name "<name>" --scope '<scope_json>'
 ```
 
-Show user: how many videos were fetched.
+If the user chose the recommended curated list, use `{"type": "video_ids", "ids": [...]}` with the specific video IDs identified in Phase 3.
+
+Show user: how many videos are in the final selection, and confirm before proceeding to transcripts.
 
 ## Phase 5: Update Excel — Videos
 

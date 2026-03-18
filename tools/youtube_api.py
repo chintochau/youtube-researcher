@@ -150,12 +150,49 @@ def format_duration(seconds):
     return f"{m}:{s:02d}"
 
 
-def list_videos(api_key, uploads_playlist_id, channel_name, scope):
+def list_videos(api_key, uploads_playlist_id, channel_name, scope, include_shorts=False):
     """Fetch videos from a channel's uploads playlist with scope filtering."""
     scope_type = scope.get("type", "all")
     videos = []
     next_page = None
     page_count = 0
+
+    # Handle video_ids scope — fetch specific videos directly by ID
+    if scope_type == "video_ids":
+        target_ids = scope.get("ids", [])
+        if not target_ids:
+            print("No video IDs provided", file=sys.stderr)
+            return []
+
+        # Fetch in batches of 50 (YouTube API limit)
+        for i in range(0, len(target_ids), 50):
+            batch = target_ids[i:i+50]
+            resp = requests.get(f"{BASE_URL}/videos", params={
+                "key": api_key,
+                "id": ",".join(batch),
+                "part": "snippet,contentDetails,statistics",
+            })
+            resp.raise_for_status()
+            for item in resp.json().get("items", []):
+                snippet = item["snippet"]
+                dur_seconds = parse_duration(item["contentDetails"].get("duration", ""))
+                stats = item.get("statistics", {})
+                videos.append({
+                    "video_id": item["id"],
+                    "title": snippet["title"],
+                    "published_at": snippet["publishedAt"],
+                    "description": snippet.get("description", ""),
+                    "thumbnail": snippet.get("thumbnails", {}).get("medium", {}).get("url", ""),
+                    "duration_seconds": dur_seconds,
+                    "duration": format_duration(dur_seconds),
+                    "view_count": int(stats.get("viewCount", 0)),
+                    "like_count": int(stats.get("likeCount", 0)),
+                })
+            print(f"Fetched batch {i//50 + 1}: {len(batch)} IDs (total: {len(videos)})", file=sys.stderr)
+
+        channel_dir = ensure_channel_dir(channel_name)
+        save_json(channel_dir / "videos.json", videos)
+        return videos
 
     # Parse scope parameters
     max_videos = scope.get("n") if scope_type == "last_n" else None
@@ -241,6 +278,10 @@ def list_videos(api_key, uploads_playlist_id, channel_name, scope):
                 if keyword in v["title"].lower() or keyword in v.get("description", "").lower()
             ]
 
+        # Filter out Shorts (≤2 minutes) unless explicitly included
+        if not include_shorts:
+            page_items = [v for v in page_items if v.get("duration_seconds", 0) > 120]
+
         videos.extend(page_items)
 
         print(f"Fetched page {page_count}: {len(page_items)} videos (total: {len(videos)})", file=sys.stderr)
@@ -276,6 +317,7 @@ def main():
     parser.add_argument("--uploads_playlist", help="Uploads playlist ID")
     parser.add_argument("--channel_name", help="Channel name for file storage")
     parser.add_argument("--scope", default='{"type": "all"}', help="Scope JSON")
+    parser.add_argument("--include_shorts", action="store_true", help="Include short videos (≤2min), excluded by default")
     args = parser.parse_args()
 
     api_key = get_api_key()
@@ -294,7 +336,7 @@ def main():
             print("Error: --uploads_playlist and --channel_name required", file=sys.stderr)
             sys.exit(1)
         scope = json.loads(args.scope)
-        videos = list_videos(api_key, args.uploads_playlist, args.channel_name, scope)
+        videos = list_videos(api_key, args.uploads_playlist, args.channel_name, scope, include_shorts=args.include_shorts)
         print(json.dumps(videos, indent=2))
 
 

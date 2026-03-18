@@ -11,7 +11,8 @@ import requests
 
 from file_utils import load_env, ensure_channel_dir, load_json
 
-SUPADATA_BASE = "https://api.supadata.ai/v1/youtube/transcript"
+TRANSCRIPT_URL = "https://api.supadata.ai/v1/transcript"
+MAX_POLL_ATTEMPTS = 120  # 120 * 1s = 2 minutes max wait per job
 
 
 def get_api_key():
@@ -23,27 +24,52 @@ def get_api_key():
     return key
 
 
+def poll_job(api_key, job_id):
+    """Poll an async transcript job until completion."""
+    url = f"{TRANSCRIPT_URL}/{job_id}"
+    headers = {"x-api-key": api_key}
+
+    for attempt in range(MAX_POLL_ATTEMPTS):
+        resp = requests.get(url, headers=headers, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        status = data.get("status")
+
+        if status == "completed":
+            return data.get("content", "")
+        elif status == "failed":
+            return None
+        # queued or active — keep polling
+        time.sleep(1)
+
+    print(f"  -> Job {job_id} timed out after {MAX_POLL_ATTEMPTS}s", file=sys.stderr)
+    return None
+
+
 def fetch_transcript(api_key, video_id):
-    """Fetch transcript for a single video. Returns text or None."""
+    """Fetch transcript for a single video. Handles both sync and async responses."""
+    video_url = f"https://www.youtube.com/watch?v={video_id}"
     resp = requests.get(
-        SUPADATA_BASE,
-        params={"videoId": video_id, "text": "true"},
+        TRANSCRIPT_URL,
+        params={"url": video_url, "text": "true"},
         headers={"x-api-key": api_key},
-        timeout=30,
+        timeout=60,
     )
 
     if resp.status_code == 200:
         data = resp.json()
-        # Supadata returns {"content": "..."} for text=true
-        content = data.get("content", "")
-        if content:
-            return content
-        # Sometimes it returns an array of segments
-        if isinstance(data, list):
-            return "\n".join(seg.get("text", "") for seg in data)
-        return str(data)
+        return data.get("content", "")
 
-    if resp.status_code in (404, 206):
+    if resp.status_code == 202:
+        # Async job for longer videos (>20 min)
+        data = resp.json()
+        job_id = data.get("jobId")
+        if job_id:
+            print(f"  -> Long video, polling job {job_id}...", file=sys.stderr)
+            return poll_job(api_key, job_id)
+        return None
+
+    if resp.status_code in (404, 206, 403):
         return None
 
     resp.raise_for_status()
@@ -85,7 +111,7 @@ def fetch_transcripts(api_key, channel_name, videos_file):
             stats["failed"] += 1
             stats["failed_ids"].append(vid_id)
 
-        # Rate limit: small delay between requests
+        # Rate limit between requests
         if i < total - 1:
             time.sleep(0.5)
 
