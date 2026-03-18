@@ -10,8 +10,8 @@ This project is a **workflow for AI coding agents** — the agent reads the work
 
 **Compatible agents:**
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (built and tested with this)
-- [OpenAI Codex](https://openai.com/index/codex/)
-- [Gemini CLI](https://github.com/google-gemini/gemini-cli)
+- [OpenAI Codex](https://chatgpt.com/codex)
+- [Google Antigravity](https://antigravity.google/)
 - Or any AI coding agent that can read files and run shell commands
 
 No AI/LLM API key is needed — the agent itself *is* the LLM. You just need API keys for the data sources (YouTube and Supadata).
