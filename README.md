@@ -27,42 +27,19 @@ All outputs are saved as Markdown reports and an Excel workbook.
 
 ## Prerequisites
 
-- **Python 3.10+**
-- **An AI coding agent** (see compatible agents above)
+You need two API keys:
 - **YouTube Data API v3 key** — [get one here](https://console.cloud.google.com/apis/library/youtube.googleapis.com)
 - **Supadata API key** — [get one here](https://supadata.ai) (used for fetching video transcripts, 1 credit per transcript)
 
 ## Setup
 
-1. **Clone the repo:**
-   ```bash
-   git clone https://github.com/your-username/youtube-researcher.git
-   cd youtube-researcher
-   ```
-
-2. **Create a virtual environment and install dependencies:**
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
-   ```
-
-3. **Add your API keys:**
-   ```bash
-   cp .env.example .env
-   ```
-   Edit `.env` and fill in your keys:
+1. Clone the repo and add your API keys to `.env`:
    ```
    YOUTUBE_API_KEY=your_youtube_api_key
    SUPADATA_API_KEY=your_supadata_api_key
    ```
 
-4. **Start your AI agent in the project directory.** For Claude Code:
-   ```bash
-   claude
-   ```
-
-5. **Say "start"** and follow the conversation.
+2. Open the project in your AI coding agent and say **"start"**. The agent will handle the rest (dependencies, venv, etc.).
 
 ## Usage
 
