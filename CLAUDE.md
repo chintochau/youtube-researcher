@@ -13,6 +13,8 @@ tools/              Python scripts for API calls and data management
   youtube_api.py    YouTube Data API v3 — channel resolution, video listing
   supadata_api.py   Supadata API — transcript fetching
   excel_manager.py  Excel workbook management (openpyxl)
+  screenshot.py     Video screenshot capture (yt-dlp + ffmpeg)
+  report_generator.py  HTML report generation from markdown
   file_utils.py     Shared utilities (env loading, file paths, slugify)
 workflows/          Step-by-step procedures
   research_channel.md   The main research workflow
@@ -22,7 +24,8 @@ data/               Output directory (one folder per channel)
     videos.json         Master video list
     transcripts/        Raw transcripts (one .txt per video)
     extractions/        Per-video analysis (one .md per video per run)
-    reports/            Final synthesis reports (.md)
+    screenshots/        Video frame captures ({video_id}_{timestamp}.jpg)
+    reports/            Final reports (.md + .html)
     {channel}.xlsx      Cumulative Excel workbook
 ```
 

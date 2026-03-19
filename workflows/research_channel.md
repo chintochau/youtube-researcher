@@ -50,6 +50,12 @@ Then analyze the video metadata (titles, descriptions, dates, view counts) again
 - **Video duration** — very short videos (<2 min) may be shorts/promos; very long (>2 hrs) may be livestreams
 - **Series patterns** — titles with "Part 1", "Ep. 3", numbered sequences suggest a structured series worth grabbing together
 
+### Screenshots (optional)
+Also ask: **"Want screenshots from the videos in the report?"**
+- If yes: during extraction, identify key visual moments (charts, setups, diagrams) with timestamps. After extraction, capture screenshots using `tools/screenshot.py`. The final HTML report will embed these inline.
+- If no: skip the screenshot phase entirely. Report will use YouTube thumbnails as fallback images.
+- Mention: screenshots add ~2-3 seconds per frame, and yt-dlp will be auto-updated before use.
+
 ### Always offer these options:
 - **Recommended** (the smart suggestion above) — *default*
 - **Custom filter**: `last_n`, `date_range`, `keyword`, or combination
@@ -150,12 +156,45 @@ Format:
 - If nothing relevant to the topic: say so in one line
 ```
 
+### Screenshot Timestamps (if user opted in)
+When screenshots are enabled, add this section to each extraction:
+
+```
+## Screenshot Moments
+[Identify 2-5 timestamps where the video shows something visually important — charts, diagrams, setups, annotations, key slides, before/after comparisons. For each:]
+- **hh:mm:ss** — [brief description of what's shown, e.g., "4H platinum chart with 3-touch trendline break setup"]
+```
+
+These timestamps will be used by `tools/screenshot.py` to capture frames from the video.
+
 **Process**: For each transcript file:
 1. Read `data/<slug>/transcripts/<video_id>.txt`
 2. Apply the appropriate system prompt
 3. Save extraction to `data/<slug>/extractions/<video_id>_<mode>_<topic_slug>.md`
 
 **Important**: Process in batches. For large sets (>20 videos), process 10 at a time and show progress.
+
+## Phase 7.5: Capture Screenshots (optional — only if user opted in)
+
+If the user chose screenshots in Phase 3:
+
+1. Read all extraction files and collect the "Screenshot Moments" timestamps
+2. Build a spec JSON:
+```json
+[
+  {"video_id": "abc123", "title": "Video Title", "timestamps": ["00:05:30", "00:12:45"]},
+  ...
+]
+```
+3. Save the spec to `data/<slug>/screenshot_spec.json`
+4. Run:
+```bash
+cd /home/jasonchau/projects/youtube-researcher && source venv/bin/activate && python tools/screenshot.py --action capture --channel_name "<name>" --spec_file "data/<slug>/screenshot_spec.json"
+```
+
+This auto-updates yt-dlp before capturing. Screenshots are saved to `data/<slug>/screenshots/{video_id}_{timestamp}.jpg`.
+
+Show user the result: captured/skipped/failed counts.
 
 ## Phase 8: Synthesize Phase
 
@@ -232,12 +271,23 @@ Be thorough but concise. Cite video titles for every claim.
 ## Phase 9: Save Report
 
 1. Save markdown report to `data/<slug>/reports/<timestamp>_<mode>_<topic_slug>.md`
-2. Update Excel:
+2. Generate HTML report:
 ```bash
-cd /home/jasonchau/projects/youtube-researcher && python tools/excel_manager.py --action full_update --channel_name "<name>" --mode "<mode>" --topic "<topic>" --videos_file "data/<slug>/videos.json" --report_file "<report_filename>" --video_count <N>
+cd /home/jasonchau/projects/youtube-researcher && source venv/bin/activate && python tools/report_generator.py --channel_name "<name>" --report_file "data/<slug>/reports/<timestamp>_<mode>_<topic_slug>.md" --videos_file "data/<slug>/videos.json"
+```
+The HTML report includes:
+- Embedded CSS for clean reading in browser (just double-click to open)
+- Table of contents with anchor links
+- Video thumbnails (from YouTube) or screenshots (if captured) inline at relevant sections
+- Clickable video links with timestamps (`youtube.com/watch?v=ID&t=123s`)
+- Source attribution for every insight
+
+3. Update Excel:
+```bash
+cd /home/jasonchau/projects/youtube-researcher && source venv/bin/activate && python tools/excel_manager.py --action full_update --channel_name "<name>" --mode "<mode>" --topic "<topic>" --videos_file "data/<slug>/videos.json" --report_file "<report_filename>" --video_count <N>
 ```
 
-3. Tell the user where the report and workbook are saved.
+4. Tell the user where the report (HTML + markdown) and workbook are saved.
 
 ## Error Handling
 
