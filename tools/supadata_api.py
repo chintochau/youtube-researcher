@@ -24,6 +24,22 @@ def get_api_key():
     return key
 
 
+def normalize_content(content):
+    """Normalize transcript content — may be a string or a list of segment objects."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        # List of segment dicts with "text" keys, or plain strings
+        parts = []
+        for item in content:
+            if isinstance(item, dict):
+                parts.append(item.get("text", ""))
+            else:
+                parts.append(str(item))
+        return "\n".join(parts)
+    return str(content) if content else ""
+
+
 def poll_job(api_key, job_id):
     """Poll an async transcript job until completion."""
     url = f"{TRANSCRIPT_URL}/{job_id}"
@@ -36,7 +52,7 @@ def poll_job(api_key, job_id):
         status = data.get("status")
 
         if status == "completed":
-            return data.get("content", "")
+            return normalize_content(data.get("content", ""))
         elif status == "failed":
             return None
         # queued or active — keep polling
@@ -58,7 +74,7 @@ def fetch_transcript(api_key, video_id):
 
     if resp.status_code == 200:
         data = resp.json()
-        return data.get("content", "")
+        return normalize_content(data.get("content", ""))
 
     if resp.status_code == 202:
         # Async job for longer videos (>20 min)

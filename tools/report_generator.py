@@ -307,12 +307,20 @@ def md_to_html(md_content, videos_lookup, screenshots, channel_name):
                 </a>
                 <div class="caption">{caption} <a href="{yt_link}" class="source" target="_blank">Watch</a></div>
             </div>'''
-            # Try to insert near mentions of this video
+            # Try to insert near mentions of this video (by title or video ID)
+            inserted = False
             title = video.get("title", "")
             if title and title in content:
                 content = content.replace(
                     title,
                     title + img_html,
+                    1  # only first occurrence
+                )
+                inserted = True
+            if not inserted and vid_id in content:
+                content = content.replace(
+                    vid_id,
+                    vid_id + img_html,
                     1  # only first occurrence
                 )
 

@@ -61,7 +61,9 @@ Also ask: **"Want screenshots from the videos in the report?"**
 - **Custom filter**: `last_n`, `date_range`, `keyword`, or combination
 - **Full channel**: all N videos (warn about credit cost if N > 100)
 
-Ask user to pick. Construct the scope JSON accordingly:
+Ask user to pick. Once the user confirms the scope selection (says "yes", "go", "start", "let's do it", etc.), proceed directly to fetching transcripts without asking for confirmation again — the estimation was already shown and approved.
+
+Construct the scope JSON accordingly:
 - `{"type": "all"}`
 - `{"type": "last_n", "n": 20}`
 - `{"type": "date_range", "after": "2024-01-01", "before": "2024-12-31"}`
@@ -89,6 +91,25 @@ cd /home/jasonchau/projects/youtube-researcher && python tools/excel_manager.py 
 ## Phase 6: Fetch Transcripts
 
 **Confirm with user before proceeding** — this costs Supadata credits.
+
+### Supadata Credit Pricing
+
+For videos **with** native subtitles/captions, fetching is cheap. For videos **without**, AI generation costs significantly more per minute.
+
+| Action | Cost |
+|--------|------|
+| 1 transcript (native captions) | 1 credit |
+| 1 generated transcript minute (no captions) | 2 credits |
+| 1 video, channel or playlist | 1 credit |
+| 1 list of channel or playlist videos | 1 credit |
+| 1 minute of transcript translation | 30 credits |
+| 1 URL | 1 credit |
+| 1 site map | 1 credit |
+
+**Before fetching, always show the user:**
+1. How many videos have native captions vs. need AI generation
+2. Total estimated credits (cheap for captioned, 2× per minute for generated)
+3. Get explicit confirmation, especially if many videos lack captions
 
 Run:
 ```bash
