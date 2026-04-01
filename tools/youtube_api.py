@@ -309,15 +309,130 @@ def list_videos(api_key, uploads_playlist_id, channel_name, scope, include_short
     return videos
 
 
+def search_videos(api_key, queries, channel_name, published_after=None, published_before=None,
+                  max_per_query=50, include_shorts=False):
+    """Search YouTube for videos matching one or more queries, across all channels.
+
+    Args:
+        queries: list of search strings (e.g. ["BluOS review", "Bluesound NAD"])
+        channel_name: name used for saving results to data/<slug>/
+        published_after: ISO date string "YYYY-MM-DD" — only return videos after this date
+        published_before: ISO date string "YYYY-MM-DD" — only return videos before this date
+        max_per_query: max results per query (YouTube caps at 50 per page, 500 total with pagination)
+        include_shorts: include videos ≤2 minutes
+    Returns:
+        deduplicated list of video dicts, saved to data/<slug>/videos.json
+    """
+    seen_ids = set()
+    all_videos = []
+
+    # Convert date strings to RFC 3339 format required by YouTube API
+    def to_rfc3339(date_str):
+        if not date_str:
+            return None
+        if 'T' in date_str:
+            return date_str if date_str.endswith('Z') else date_str + 'Z'
+        return date_str + 'T00:00:00Z'
+
+    after_rfc = to_rfc3339(published_after)
+    before_rfc = to_rfc3339(published_before)
+
+    for query in queries:
+        collected = []
+        next_page = None
+        page = 0
+
+        while len(collected) < max_per_query:
+            params = {
+                "key": api_key,
+                "part": "snippet",
+                "q": query,
+                "type": "video",
+                "maxResults": min(50, max_per_query - len(collected)),
+                "order": "relevance",
+            }
+            if after_rfc:
+                params["publishedAfter"] = after_rfc
+            if before_rfc:
+                params["publishedBefore"] = before_rfc
+            if next_page:
+                params["pageToken"] = next_page
+
+            resp = requests.get(f"{BASE_URL}/search", params=params)
+            resp.raise_for_status()
+            data = resp.json()
+            page += 1
+
+            video_ids = [item["id"]["videoId"] for item in data.get("items", [])]
+            if not video_ids:
+                break
+
+            # Fetch full details (duration, stats) in one batch call
+            details_resp = requests.get(f"{BASE_URL}/videos", params={
+                "key": api_key,
+                "id": ",".join(video_ids),
+                "part": "snippet,contentDetails,statistics",
+            })
+            details_resp.raise_for_status()
+
+            for item in details_resp.json().get("items", []):
+                vid_id = item["id"]
+                if vid_id in seen_ids:
+                    continue
+                snippet = item["snippet"]
+                dur_seconds = parse_duration(item["contentDetails"].get("duration", ""))
+                if not include_shorts and dur_seconds <= 120:
+                    continue
+                stats = item.get("statistics", {})
+                seen_ids.add(vid_id)
+                collected.append({
+                    "video_id": vid_id,
+                    "title": snippet["title"],
+                    "channel_title": snippet.get("channelTitle", ""),
+                    "channel_id": snippet.get("channelId", ""),
+                    "published_at": snippet["publishedAt"],
+                    "description": snippet.get("description", ""),
+                    "thumbnail": snippet.get("thumbnails", {}).get("medium", {}).get("url", ""),
+                    "duration_seconds": dur_seconds,
+                    "duration": format_duration(dur_seconds),
+                    "view_count": int(stats.get("viewCount", 0)),
+                    "like_count": int(stats.get("likeCount", 0)),
+                    "search_query": query,
+                })
+
+            print(f"Query '{query}' page {page}: {len(video_ids)} results (collected: {len(collected)})", file=sys.stderr)
+
+            next_page = data.get("nextPageToken")
+            if not next_page:
+                break
+
+        all_videos.extend(collected)
+        print(f"Query '{query}' done: {len(collected)} videos", file=sys.stderr)
+
+    # Sort by view count descending — most-watched reviews first
+    all_videos.sort(key=lambda v: v["view_count"], reverse=True)
+
+    channel_dir = ensure_channel_dir(channel_name)
+    save_json(channel_dir / "videos.json", all_videos)
+
+    print(f"Total unique videos: {len(all_videos)}", file=sys.stderr)
+    return all_videos
+
+
 def main():
     parser = argparse.ArgumentParser(description="YouTube API v3 client")
-    parser.add_argument("--action", required=True, choices=["channel_info", "list_videos"])
+    parser.add_argument("--action", required=True, choices=["channel_info", "list_videos", "search_videos"])
     parser.add_argument("--channel", help="Channel URL, handle, or name")
     parser.add_argument("--channel_id", help="Channel ID")
     parser.add_argument("--uploads_playlist", help="Uploads playlist ID")
     parser.add_argument("--channel_name", help="Channel name for file storage")
     parser.add_argument("--scope", default='{"type": "all"}', help="Scope JSON")
     parser.add_argument("--include_shorts", action="store_true", help="Include short videos (≤2min), excluded by default")
+    # search_videos args
+    parser.add_argument("--queries", help="JSON array of search query strings")
+    parser.add_argument("--published_after", help="ISO date YYYY-MM-DD — only videos after this date")
+    parser.add_argument("--published_before", help="ISO date YYYY-MM-DD — only videos before this date")
+    parser.add_argument("--max_per_query", type=int, default=50, help="Max results per query (default: 50)")
     args = parser.parse_args()
 
     api_key = get_api_key()
@@ -337,6 +452,20 @@ def main():
             sys.exit(1)
         scope = json.loads(args.scope)
         videos = list_videos(api_key, args.uploads_playlist, args.channel_name, scope, include_shorts=args.include_shorts)
+        print(json.dumps(videos, indent=2))
+
+    elif args.action == "search_videos":
+        if not args.queries or not args.channel_name:
+            print("Error: --queries (JSON array) and --channel_name required for search_videos", file=sys.stderr)
+            sys.exit(1)
+        queries = json.loads(args.queries)
+        videos = search_videos(
+            api_key, queries, args.channel_name,
+            published_after=args.published_after,
+            published_before=args.published_before,
+            max_per_query=args.max_per_query,
+            include_shorts=args.include_shorts,
+        )
         print(json.dumps(videos, indent=2))
 
 
