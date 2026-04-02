@@ -159,10 +159,33 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     text-decoration: none;
   }}
   .source:hover {{ background: var(--accent2); color: #fff; text-decoration: none; }}
+  /* Tables */
+  table {{
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.2rem 0;
+    font-size: 0.92em;
+  }}
+  thead th {{
+    background: var(--surface2);
+    color: #fff;
+    font-weight: 600;
+    text-align: left;
+    padding: 0.6rem 0.9rem;
+    border: 1px solid var(--border);
+  }}
+  tbody td {{
+    padding: 0.5rem 0.9rem;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }}
+  tbody tr:nth-child(even) {{ background: var(--surface); }}
+  tbody tr:hover {{ background: var(--surface2); }}
   /* Responsive */
   @media (max-width: 600px) {{
     .video-card {{ flex-direction: column; }}
     .video-card img {{ width: 100%; min-width: unset; }}
+    table {{ display: block; overflow-x: auto; }}
   }}
 </style>
 </head>
@@ -214,9 +237,17 @@ def md_to_html(md_content, videos_lookup, screenshots, channel_name):
     toc_entries = []
     in_list = False
     in_ordered_list = False
+    in_table = False
+    table_header_done = False
     list_type = None
 
     channel_dir = ensure_channel_dir(channel_name)
+
+    def is_table_row(s):
+        return s.startswith("|") and s.endswith("|") and s.count("|") >= 2
+
+    def parse_table_cells(s):
+        return [c.strip() for c in s[1:-1].split("|")]
 
     for line in lines:
         stripped = line.strip()
@@ -228,6 +259,12 @@ def md_to_html(md_content, videos_lookup, screenshots, channel_name):
         if in_ordered_list and not re.match(r'^\d+\.', stripped) and stripped != "":
             html_parts.append("</ol>")
             in_ordered_list = False
+
+        # Close open table if leaving table context
+        if in_table and not is_table_row(stripped):
+            html_parts.append("</tbody></table>")
+            in_table = False
+            table_header_done = False
 
         # Headers
         h_match = re.match(r'^(#{1,4})\s+(.*)', stripped)
@@ -273,14 +310,38 @@ def md_to_html(md_content, videos_lookup, screenshots, channel_name):
         if stripped == "":
             continue
 
+        # Table row
+        if is_table_row(stripped):
+            cells = parse_table_cells(stripped)
+            # Separator line (|---|---|)
+            if all(re.match(r'^[-:]+$', c) for c in cells if c):
+                if in_table and not table_header_done:
+                    html_parts.append("</tr></thead><tbody>")
+                    table_header_done = True
+                continue
+            if not in_table:
+                html_parts.append("<table><thead><tr>")
+                in_table = True
+                table_header_done = False
+                for cell in cells:
+                    html_parts.append(f'<th>{format_inline(cell, videos_lookup)}</th>')
+            else:
+                html_parts.append("<tr>")
+                for cell in cells:
+                    html_parts.append(f'<td>{format_inline(cell, videos_lookup)}</td>')
+                html_parts.append("</tr>")
+            continue
+
         # Regular paragraph
         html_parts.append(f'<p>{format_inline(stripped, videos_lookup)}</p>')
 
-    # Close any open lists
+    # Close any open lists or tables
     if in_list:
         html_parts.append("</ul>")
     if in_ordered_list:
         html_parts.append("</ol>")
+    if in_table:
+        html_parts.append("</tbody></table>")
 
     # Build TOC
     toc_html = '<div class="toc"><h2>Table of Contents</h2><ul>'
